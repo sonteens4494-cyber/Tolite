@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Animated Explainer Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#14121f;--panel:#201d33;--ink:#f4f0ff;--mut:#a9a3c7;--acc:#ff6b81;--ok:#5be3a0}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:500 15px Prompt,'Noto Sans Thai',system-ui,sans-serif;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);min-height:100dvh}
+main{max-width:760px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+h1{font-size:18px;margin:4px 0}
+.box{background:var(--panel);border-radius:14px;padding:12px}
+button,select,label.btn{min-height:48px;border:0;border-radius:12px;background:#38325c;color:var(--ink);font:inherit;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+button.p{background:var(--acc);color:#fff}button:disabled{opacity:.4}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+canvas{width:100%;max-height:68dvh;object-fit:contain;background:#000;border-radius:12px;display:block;margin:0 auto}
+input[type=range]{flex:1;min-width:120px;height:48px}
+small,.s{color:var(--mut);font-size:13px;line-height:1.5}
+.sc{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid #38325c}
+.sc button{min-height:48px;min-width:56px}
+#err{color:#ffb3bd}progress{width:100%;height:14px}
+video{width:100%;max-height:60dvh;border-radius:12px}
+</style></head><body><main>
+<h1>สตูดิโอแอนิเมชันความรู้: ทำไมเวลาอึต้องเล่นโทรศัพท์?</h1>
+<div class="box"><div class="row"><label class="btn p">1 นำเข้าเสียงพากย์ (MP3)<input id="f" type="file" accept="audio/*,.mp3" hidden></label></div>
+<div class="s" id="info">ยังไม่ได้นำเข้าเสียง — เวลาโดยประมาณ ยังไม่ซิงก์กับเสียงจริง</div><div id="err"></div></div>
+<canvas id="cv"></canvas>
+<div class="box"><div class="row"><button id="play" class="p">เล่น</button><button id="stop">หยุด</button><button id="mute">ปิดเสียง</button><button id="fs">เต็มจอ</button><span id="tm">0:00</span><input id="seek" type="range" min="0" max="1000" value="0"></div>
+<div class="s" id="sync">สถานะซิงก์: ประมาณการ</div></div>
+<div class="box"><div class="s">2 เลือกขนาดวิดีโอ</div><div class="row">
+<select id="fmt"><option value="0">9:16 Reels/Stories</option><option value="1">4:5 Feed</option><option value="2">1:1 Square</option><option value="3">16:9 Landscape</option></select>
+<select id="res"><option value="720">720p</option><option value="1080">1080p</option></select>
+<button id="safe">Safe zone</button><button id="exp" class="p">3 สร้างวิดีโอ</button><button id="cancel" disabled>ยกเลิก</button></div>
+<progress id="pg" value="0" max="100" hidden></progress><div class="s" id="est"></div></div>
+<div class="box" id="out" hidden><video id="vid" controls playsinline></video><div class="s" id="vinfo"></div><div class="row"><button id="sv" class="p">บันทึก/แชร์</button><button id="again">สร้างใหม่</button></div></div>
+<details class="box"><summary>ปรับจุดซิงก์ (แตะชื่อฉากเพื่อข้ามไป)</summary><div id="sp"></div></details>
+</main>
+<script>
+/* ===== OUTPUT G DATA ===== */
+const G={
+S:["เคยไหม? เข้าห้องน้ำทีไร ต้องหยิบโทรศัพท์ขึ้นมาทุกที!","บางคนถึงขั้นว่า ถ้าไม่มีโทรศัพท์… นั่งยังไงก็ไม่ออก!","ตกลงโทรศัพท์ช่วยให้เราขับถ่าย หรือสมองเรากำลังติดนิสัยบางอย่างกันแน่?","คำตอบอยู่ที่สมองครับ!","เวลาที่เราเล่นโทรศัพท์ สมองได้รับสิ่งกระตุ้นใหม่ ๆ ตลอดเวลา ทั้งคลิปสนุก ข้อความแจ้งเตือน และข้อมูลที่เราอยากรู้อยากเห็น","สิ่งเหล่านี้เกี่ยวข้องกับระบบรางวัลของสมอง ทำให้เราอยากกลับมาเปิดดูอีก","เมื่อทำซ้ำในสถานการณ์เดิม ๆ เช่น ทุกครั้งที่นั่งโถส้วมต้องเปิดโทรศัพท์ สมองก็อาจเรียนรู้และสร้างความเคยชิน จนกลายเป็นพฤติกรรมอัตโนมัติ","แต่รู้ไหมครับว่า… การขับถ่ายจริง ๆ ไม่ได้ต้องพึ่งโทรศัพท์เลย!","เมื่ออุจจาระเคลื่อนเข้าสู่ไส้ตรง ผนังไส้ตรงจะถูกยืดและส่งสัญญาณผ่านระบบประสาท ทำให้เกิดความรู้สึกอยากถ่าย","จากนั้นกล้ามเนื้อหูรูดและกล้ามเนื้ออุ้งเชิงกรานจะต้องประสานงานกัน เพื่อให้อุจจาระออกจากร่างกาย","แล้วปัญหาอยู่ตรงไหน?","การนั่งเล่นโทรศัพท์เพลิน ๆ ทำให้เราใช้เวลาอยู่บนโถส้วมนานเกินความจำเป็น","ยิ่งนั่งนาน โดยเฉพาะเมื่อมีการเบ่งหรือเพิ่มแรงดันบริเวณทวารหนัก ก็เป็นพฤติกรรมที่ควรหลีกเลี่ยง เพราะสัมพันธ์กับปัญหาริดสีดวงทวาร","จำไว้นะครับ!","โทรศัพท์ไม่ได้เป็นกุญแจเปิดลำไส้ แต่บางทีเราอาจฝึกสมองให้คิดว่า ห้องน้ำต้องมาคู่กับโทรศัพท์ไปแล้ว","แล้วคุณล่ะครับ เข้าห้องน้ำโดยไม่มีโทรศัพท์ อึออกไหม?"],
+SC:[["S01","โทรศัพท์กับห้องน้ำ",0],["S02","ถ้าไม่มีโทรศัพท์",1],["S03","สมองกำลังเรียนรู้อะไร",3],["S04","ระบบรางวัลของสมอง",4],["S05","การสร้างความเคยชิน",6],["S06","ระบบขับถ่ายจริง",7],["S07","รีเฟล็กซ์การขับถ่าย",8],["S08","นั่งนานเกินไป",10],["S09","บทสรุป",13]],
+HL:["โทรศัพท์","สมอง","ระบบรางวัล","ไส้ตรง","หูรูด","อุ้งเชิงกราน","ริดสีดวงทวาร","เบ่ง","ความเคยชิน"],
+FM:[[9,16],[4,5],[1,1],[16,9]]};
+const $=id=>document.getElementById(id),cv=$('cv'),X=cv.getContext('2d');
+let W=720,H=1280,buf=null,env=null,dur=0,st=[],voice=[0,0],hasAudio=false,ac=null,src=null,t0=0,off=0,playing=false,muted=false,safe=false,rec=null,cancelled=false,lastBlob=null,lastUrl=null;
+const seg=window.Intl&&Intl.Segmenter?new Intl.Segmenter('th',{granularity:'word'}):null;
+const err=m=>{$('err').textContent=m};
+/* ===== TIMING ===== */
+function est(){const w=G.S.map(s=>s.length+(/[?!…]/.test(s.slice(-2))?6:3));let c=0;st=w.map(x=>{const a=c;c+=x/11;return a});dur=c;voice=[0,c];}
+function analyze(){const d=buf.getChannelData(0),sr=buf.sampleRate,n=Math.floor(sr*.02),L=Math.floor(d.length/n);env=new Float32Array(L);
+ for(let i=0;i<L;i++){let s=0;for(let j=0;j<n;j+=4){const v=d[i*n+j];s+=v*v}env[i]=Math.sqrt(s/(n/4))}
+ const sorted=Float32Array.from(env).sort(),p95=sorted[Math.floor(L*.95)],th=p95*.08;
+ let a=0,b=L-1;while(a<L&&env[a]<th)a++;while(b>0&&env[b]<th)b--;
+ voice=[a*.02,(b+1)*.02];
+ const P=[];let run=0;for(let i=a;i<=b;i++){if(env[i]<th)run++;else{if(run>=11)P.push((i-run/2)*.02);run=0}}
+ const w=G.S.map(s=>s.length+(/[?!…]/.test(s.slice(-2))?6:3)),tot=w.reduce((x,y)=>x+y,0);let c=0;
+ st=w.map(x=>{const g=voice[0]+(c/tot)*(voice[1]-voice[0]);c+=x;let best=g,bd=1.3;for(const p of P){const dd=Math.abs(p-g);if(dd<bd){bd=dd;best=p}}return best});
+ st[0]=voice[0];for(let i=1;i<st.length;i++)if(st[i]<=st[i-1]+.4)st[i]=st[i-1]+.4;dur=Math.max(buf.duration,voice[1]);}
+function sceneIdx(t){let k=0;G.SC.forEach((s,i)=>{if(t>=st[s[2]])k=i});return k}
+function sentIdx(t){let k=0;st.forEach((s,i)=>{if(t>=s)k=i});return k}
+function sEnd(i){return i+1<st.length?st[i+1]:voice[1]}
+function chunks(s){const ws=seg?[...seg.segment(s)].map(x=>x.segment):s.split(/(?<=\s)/);const o=[];let c='';for(const w of ws){if(c.length+w.length>28&&c){o.push(c);c=''}c+=w}if(c)o.push(c);return o.map(x=>x.trim())}
+/* ===== AUDIO ===== */
+function ctx(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();return ac}
+$('f').onchange=async e=>{const f=e.target.files[0];if(!f)return;err('');$('info').textContent='กำลังอ่านไฟล์…';
+ try{const ab=await f.arrayBuffer();$('info').textContent='กำลังวิเคราะห์เสียง…';buf=await ctx().decodeAudioData(ab);hasAudio=true;analyze();
+ $('info').textContent=`${f.name} · ${(f.size/1048576).toFixed(2)} MB · ${f.type||'audio'} · ${buf.duration.toFixed(2)} วินาที · ${buf.sampleRate} Hz · ${buf.numberOfChannels} ch`;
+ $('sync').textContent='สถานะซิงก์: ประมาณการจากช่วงเงียบและน้ำหนักตัวอักษร (ไม่ใช่ forced alignment) — ตรวจและปรับจุดซิงก์ได้';buildSP();draw(0);}
+ catch(x){buf=null;hasAudio=false;err('อ่านหรือถอดรหัสไฟล์เสียงไม่สำเร็จ: ลองไฟล์ MP3/WAV อื่น ('+x.message+')')}};
+function startAudio(at,dest){stopAudio();if(!buf)return;src=ac.createBufferSource();src.buffer=buf;const g=ac.createGain();g.gain.value=muted&&!dest?0:1;src.connect(g);g.connect(ac.destination);if(dest)g.connect(dest);src.start(0,at);t0=ac.currentTime;off=at}
+function stopAudio(){try{src&&src.stop()}catch(e){}src=null}
+function now(){return playing?(hasAudio?off+(ac.currentTime-t0):off+(performance.now()-t0)/1000):off}
+$('play').onclick=()=>{if(playing){off=now();playing=false;stopAudio();$('play').textContent='เล่น';return}
+ ctx();if(off>=dur)off=0;playing=true;$('play').textContent='พัก';if(hasAudio)startAudio(off);else t0=performance.now();loop()};
+$('stop').onclick=()=>{playing=false;stopAudio();off=0;$('play').textContent='เล่น';draw(0)};
+$('mute').onclick=()=>{muted=!muted;$('mute').textContent=muted?'เปิดเสียง':'ปิดเสียง';if(playing){off=now();startAudio(off)}};
+$('fs').onclick=()=>{const r=cv.requestFullscreen||cv.webkitRequestFullscreen;r?r.call(cv):err('เบราว์เซอร์นี้ไม่รองรับเต็มจอ')};
+$('safe').onclick=()=>{safe=!safe;draw(now())};
+$('seek').oninput=e=>{off=e.target.value/1000*dur;if(playing){hasAudio?startAudio(off):t0=performance.now()}draw(off)};
+function loop(){if(!playing)return;const t=now();if(t>=dur){playing=false;off=dur;stopAudio();$('play').textContent='เล่น';draw(dur);return}draw(t);requestAnimationFrame(loop)}
+function buildSP(){$('sp').innerHTML='';G.SC.forEach((s,i)=>{const d=document.createElement('div');d.className='sc';d.innerHTML=`<span>${s[0]} ${s[1]}<br><small id="t${i}"></small></span><button>−0.1</button><button>+0.1</button>`;
+ const [b0,b1,b2]=[d.querySelector('span'),...d.querySelectorAll('button')];
+ b0.onclick=()=>{off=st[s[2]];if(playing)startAudio(off);draw(off)};
+ b1.onclick=()=>adj(s[2],-.1);b2.onclick=()=>adj(s[2],.1);$('sp').appendChild(d)});upd()}
+function adj(k,d){if(k===0)return;st[k]=Math.max(st[k-1]+.2,Math.min(sEnd(k)-.2,st[k]+d));upd();draw(st[k]+.01);if(playing){off=st[k]+.01;startAudio(off)}}
+function upd(){G.SC.forEach((s,i)=>{const a=st[s[2]],e=i+1<G.SC.length?st[G.SC[i+1][2]]:voice[1],el=$('t'+i);if(el)el.textContent=`${a.toFixed(2)}–${e.toFixed(2)}s · ${hasAudio?'approximate':'ประมาณ ไม่ซิงก์กับเสียงจริง'}`})}
+/* ===== DRAWING HELPERS ===== */
+const ease=x=>x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2,cl=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+function rr(x,y,w,h,r,f,s,lw){X.beginPath();X.roundRect(x,y,w,h,r);if(f){X.fillStyle=f;X.fill()}if(s){X.strokeStyle=s;X.lineWidth=lw||3;X.stroke()}}
+function el(x,y,rx,ry,f,s,lw,rot){X.beginPath();X.ellipse(x,y,rx,ry,rot||0,0,7);if(f){X.fillStyle=f;X.fill()}if(s){X.strokeStyle=s;X.lineWidth=lw||3;X.stroke()}}
+function limb(x1,y1,a1,l1,a2,l2,w,c){const x2=x1+Math.cos(a1)*l1,y2=y1+Math.sin(a1)*l1,x3=x2+Math.cos(a2)*l2,y3=y2+Math.sin(a2)*l2;X.lineCap='round';X.lineJoin='round';X.strokeStyle='#2a1a33';X.lineWidth=w+4;X.beginPath();X.moveTo(x1,y1);X.lineTo(x2,y2);X.lineTo(x3,y3);X.stroke();X.strokeStyle=c;X.lineWidth=w;X.stroke();return[x3,y3]}
+function envAt(t){return env?Math.min(1,(env[Math.floor(t/.02)]||0)/ (window._ep||(window._ep=Float32Array.from(env).sort()[Math.floor(env.length*.95)]||1))*1.4):.5+.5*Math.sin(t*14)*0}
+/* ===== CHARACTERS (locked designs, one function each) ===== */
+function nonn(x,y,u,o){const t=o.t,sit=o.sit,br=Math.sin(t*2.5)*.03*u,bl=(t%3.2)<.12;
+ const sc=1+(o.sq||0);X.save();X.translate(x,y);X.scale(1/sc,sc);
+ const hy=-6.3*u+br,ty=-3.2*u;
+ // legs
+ if(sit){limb(-.3*u,-2.2*u,0,1.5*u,Math.PI/2,1.9*u,.95*u,'#e9c69a');limb(.3*u,-2.2*u,0,1.5*u,Math.PI/2,1.9*u,.95*u,'#e9c69a')}
+ else{const w=o.walk?Math.sin(t*9)*.5:0;limb(-.3*u,-2.2*u,Math.PI/2+w,1.1*u,Math.PI/2+w*.4,1.1*u,.9*u,'#d9a974');limb(.3*u,-2.2*u,Math.PI/2-w,1.1*u,Math.PI/2-w*.4,1.1*u,.9*u,'#d9a974')}
+ X.fillStyle='#5b6a86';rr(-.95*u,-2.9*u,1.9*u,1.1*u,.4*u,'#5b6a86','#2a1a33',3);
+ // torso
+ rr(-1.05*u,-4.9*u+br,2.1*u,2.2*u,.7*u,'#3d8bff','#2a1a33',3.5);el(0,-4.85*u+br,.4*u,.18*u,'#2a6fe0');
+ // arms
+ const sh=[[-1*u,-4.6*u+br],[1*u,-4.6*u+br]];const a=o.arm||[2.2,.9];
+ limb(sh[0][0],sh[0][1],a[0],1.1*u,a[0]+.3,1*u,.7*u,'#d9a974');
+ const hd=limb(sh[1][0],sh[1][1],o.pa||a[1],1.1*u,o.pb||a[1]+.5,1*u,.7*u,'#d9a974');
+ if(o.phone){rr(hd[0]-.35*u,hd[1]-.8*u,.7*u,1.2*u,.1*u,o.dead?'#111':'#7dd3ff','#222',3);if(o.dead){X.fillStyle='#ff5252';X.fillRect(hd[0]-.2*u,hd[1]-.4*u,.4*u,.2*u)}else{X.fillStyle='#fff8';X.fillRect(hd[0]-.25*u,hd[1]-.6*u+((t*40)%20)/20*.3*u,.5*u,.12*u)}}
+ // head
+ X.save();X.translate(0,hy);X.rotate(o.tilt||Math.sin(t*1.7)*.03);
+ el(0,0,1.45*u,1.55*u,'#d9a974','#2a1a33',3.5);
+ X.fillStyle='#1b1b24';X.beginPath();X.ellipse(0,-.55*u,1.55*u,1.05*u,0,Math.PI,0);X.fill();X.beginPath();X.arc(-.2*u,-1*u,.9*u,Math.PI,0);X.fill();
+ const ex=[-.55*u,.55*u],big=o.expr==='surprised'?1.25:1;
+ ex.forEach(e=>{if(bl)X.fillRect(e-.25*u,.0,.5*u,.06*u);else{el(e,0,.3*u*big,.36*u*big,'#fff','#2a1a33',2.5);el(e+(o.look||0)*.1*u,.04*u,.15*u,.2*u,'#1b1b24');el(e+(o.look||0)*.1*u-.05*u,-.04*u,.05*u,.06*u,'#fff')}
+  X.strokeStyle='#1b1b24';X.lineWidth=.12*u;X.beginPath();const k=o.expr==='surprised'?-.75:o.expr==='worried'?-.5:-.6;X.moveTo(e-.3*u,k*u);X.lineTo(e+.3*u,(k-(o.expr==='worried'?-.15:.05))*u);X.stroke()});
+ const m=o.mouth==null?0:o.mouth;X.fillStyle='#7a2230';X.strokeStyle='#2a1a33';X.lineWidth=3;
+ if(o.expr==='surprised'||m>.15){X.beginPath();X.ellipse(0,.8*u,.3*u,(.12+m*.35)*u,0,0,7);X.fill();X.stroke()}else{X.beginPath();X.arc(0,.6*u,.4*u,.15,Math.PI-.15);X.stroke()}
+ el(-.9*u,.5*u,.22*u,.12*u,'#ff8a7a66');el(.9*u,.5*u,.22*u,.12*u,'#ff8a7a66');
+ X.restore();X.restore()}
+function brain(x,y,u,o){const t=o.t,b=Math.sin(t*3)*.12*u;X.save();X.translate(x,y+b);
+ limb(-.9*u,-1.4*u,2.2,.9*u,1.8,.7*u,.5*u,'#fff');
+ const hd=limb(.9*u,-1.4*u,o.pt||.7,.9*u,o.pt2||.2,.8*u,.5*u,'#fff');
+ limb(-.35*u,-.5*u,Math.PI/2,.6*u,Math.PI/2,.5*u,.4*u,'#8b6fb8');limb(.35*u,-.5*u,Math.PI/2,.6*u,Math.PI/2,.5*u,.4*u,'#8b6fb8');
+ rr(-.95*u,-1.8*u,1.9*u,1.5*u,.35*u,'#fff','#2a1a33',3);
+ [[-.8,-3.2,.95],[.2,-3.3,1],[0,-2.5,1.35],[-.75,-2.4,.8],[.75,-2.4,.8]].forEach(p=>el(p[0]*u,p[1]*u,p[2]*u*.8,p[2]*u*.7,'#f08fc0','#2a1a33',3));
+ X.strokeStyle='#b4568c';X.lineWidth=3;X.beginPath();X.moveTo(0,-3.9*u);X.bezierCurveTo(-.4*u,-3.4*u,.4*u,-3*u,0,-2.5*u);X.stroke();
+ el(-.5*u,-2.6*u,.28*u,.33*u,'#fff','#2a1a33',2.5);el(.5*u,-2.6*u,.28*u,.33*u,'#fff','#2a1a33',2.5);el(-.45*u,-2.55*u,.13*u,.17*u,'#1b1b24');el(.55*u,-2.55*u,.13*u,.17*u,'#1b1b24');
+ X.strokeStyle='#2a1a33';X.lineWidth=3;X.beginPath();X.arc(0,-2.15*u,.35*u,.2,Math.PI-.2);X.stroke();
+ X.strokeStyle='#d6a23a';X.lineWidth=.12*u;X.beginPath();X.moveTo(hd[0],hd[1]);X.lineTo(hd[0]+.4*u,hd[1]-.4*u);X.stroke();el(hd[0]+.7*u,hd[1]-.7*u,.35*u,.35*u,'#bfe9ff88','#d6a23a',4);X.restore()}
+/* ===== SCENE ===== */
+let tile=null;
+function room(){if(tile&&tile.width===W&&tile.height===H)return;tile=document.createElement('canvas');tile.width=W;tile.height=H;const c=tile.getContext('2d'),fy=H*.78;
+ let g=c.createLinearGradient(0,0,0,fy);g.addColorStop(0,'#b9e3ee');g.addColorStop(1,'#8fcbd9');c.fillStyle=g;c.fillRect(0,0,W,fy);
+ c.strokeStyle='#ffffff88';c.lineWidth=2;const s=W/9;for(let x=0;x<W;x+=s){c.beginPath();c.moveTo(x,0);c.lineTo(x,fy);c.stroke()}for(let y=0;y<fy;y+=s){c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke()}
+ g=c.createLinearGradient(0,fy,0,H);g.addColorStop(0,'#a58b73');g.addColorStop(1,'#6e5a49');c.fillStyle=g;c.fillRect(0,fy,W,H-fy);
+ c.fillStyle='#fff6d8';c.fillRect(W*.06,H*.08,W*.26,H*.1);c.strokeStyle='#5b7a85';c.lineWidth=6;c.strokeRect(W*.06,H*.08,W*.26,H*.1);
+ c.fillStyle='#4d8fa0';c.fillRect(W*.8,fy-H*.3,W*.12,H*.3);c.fillStyle='#e9fbff';c.fillRect(W*.82,fy-H*.46,W*.1,H*.06)}
+function toilet(x,y,u){rr(x-1.6*u,y-3*u,.9*u,2.2*u,.3*u,'#f6fbff','#2a1a33',3);rr(x-1.2*u,y-1.9*u,3*u,.7*u,.3*u,'#fff','#2a1a33',3);rr(x-.9*u,y-1.2*u,2.2*u,1.3*u,.5*u,'#e6f1f7','#2a1a33',3)}
+function mid(p){return p}
+function draw(t){room();const u=Math.min(W/9,H/16)*1.0,fy=H*.78,k=sceneIdx(t),sc=G.SC[k],a=st[sc[2]],e=k+1<G.SC.length?st[G.SC[k+1][2]]:Math.max(dur,a+1),p=cl((t-a)/(e-a)),si=sentIdx(t);
+ const talk=hasAudio?(env&&t>=voice[0]&&t<=voice[1]?envAt(t):0):.5*(Math.sin(t*12)+1)/2;
+ X.save();X.clearRect(0,0,W,H);
+ const z=k===0?1+.1*p:k===1?1.15+.1*p:1;X.translate(W/2,fy*.7);X.scale(z,z);X.translate(-W/2,-fy*.7);
+ X.drawImage(tile,0,0);
+ const nx=W*(W<H?.36:.4),by=fy+u*.9,bx=W*(W<H?.74:.7),T=t;
+ toilet(nx+u*.2,by,u*1.05);
+ const N=(o)=>nonn(nx,by-.4*u,u*.95,Object.assign({t:T},o)),B=(o)=>brain(bx,by,u*.95,Object.assign({t:T},o));
+ const dark=()=>{X.fillStyle='#0008';X.fillRect(0,0,W,H)};
+ if(k===0){const w=ease(cl(p*2.2));X.save();const xx=-u*2+(nx+u*2)*w;nonn(xx,by-.4*u,u*.95,{t:T,phone:1,walk:w<1,sit:w>=1,arm:[2.3,-1.2],pa:-1.3,pb:-1.8});X.restore()}
+ if(k===1){N({sit:1,phone:1,dead:1,expr:'surprised',look:0,mouth:p>.2?talk:0,pa:-1.2,pb:-1.9});el(nx,H*.3,u*1.2,u*.4,'#ffffff55');X.font=`700 ${u*.9}px Prompt`;X.textAlign='center'}
+ if(k>=2&&k!==1){const bi=k===2?ease(cl(p*3)):1;
+  if(k<=1||true){}}
+ if(k===2){N({sit:1,expr:'curious',look:1});const ent=ease(cl(p*3));brain(bx+(1-ent)*u*6,by,u*.95,{t:T,pt:-.6,pt2:-.9});board(W*.5,fy*.35,u,'brain',T,ent)}
+ if(k===3){N({sit:1,phone:1,pa:-1.2,pb:-1.9,look:1});brain(bx,by,u*.95,{t:T,pt:-.6,pt2:-.9});phoneScreen(W*.18,fy*.18,u,T);board(W*.62,fy*.3,u,'reward',T,1);X.strokeStyle='#ffd23f';X.lineWidth=4;X.setLineDash([10,12]);X.lineDashOffset=-T*60;X.beginPath();X.moveTo(W*.28,fy*.32);X.quadraticCurveTo(W*.45,fy*.18,W*.55,fy*.3);X.stroke();X.setLineDash([])}
+ if(k===4){N({sit:1,phone:1,pa:-1.2,pb:-1.9});loopDiag(W*.5,fy*.3,u,T)}
+ if(k===5){dark();B({pt:-.6,pt2:-.9});board(W*.5,fy*.33,u,'gut',T,ease(cl(p*4)))}
+ if(k===6){dark();board(W*.5,fy*.4,u*1.25,'rectum',T,p)}
+ if(k===7){const q=cl((p-.45)*4);if(p<.55){N({sit:1,phone:1,pa:-1.2,pb:-1.9,look:1});clockF(W*.7,fy*.25,u,T,p)}else{dark();board(W*.5,fy*.4,u*1.25,'hem',T,q)}}
+ if(k===8){const dn=p>.3;N({sit:1,expr:'happy',mouth:dn?talk*.6:0,phone:!dn&&1,pa:dn?2:-1.2,pb:dn?2.4:-1.9});if(dn)el(nx+u*1.6,by-u,.7*u,.4*u,'#ddd');brain(bx,by,u*.95,{t:T,pt:-.4,pt2:-.2});rr(W*.2,fy*.12,W*.6,u*2.3,u*.4,'#fff9e0','#2a1a33',4);X.fillStyle='#2a1a33';X.font=`700 ${u*.5}px Prompt, sans-serif`;X.textAlign='center';wrap('โทรศัพท์ไม่ได้เป็นกุญแจเปิดลำไส้',W*.5,fy*.12+u*.9,W*.55,u*.65)}
+ X.restore();
+ // vignette
+ const vg=X.createRadialGradient(W/2,H/2,H*.3,W/2,H/2,H*.75);vg.addColorStop(0,'#0000');vg.addColorStop(1,'#0006');X.fillStyle=vg;X.fillRect(0,0,W,H);
+ sub(t,u);
+ X.fillStyle='#fff';X.font=`700 ${u*.38}px Prompt, sans-serif`;X.textAlign='left';X.fillText(sc[0]+' '+sc[1],u*.4,u*.7);
+ if(!hasAudio){X.fillStyle='#ffd23f';X.fillText('เวลาโดยประมาณ ยังไม่ซิงก์กับเสียงจริง',u*.4,u*1.2)}
+ if(safe){X.strokeStyle='#5be3a0';X.lineWidth=3;X.setLineDash([12,10]);X.strokeRect(W*.06,H*.1,W*.88,H*.7);X.setLineDash([])}
+ const tt=Math.min(t,dur);$('tm').textContent=Math.floor(tt/60)+':'+String(Math.floor(tt%60)).padStart(2,'0');$('seek').value=dur?tt/dur*1000:0}
+function wrap(s,x,y,mw,lh){const ws=seg?[...seg.segment(s)].map(a=>a.segment):[s];let l='',yy=y;for(const w of ws){if(X.measureText(l+w).width>mw&&l){X.fillText(l,x,yy);yy+=lh;l=''}l+=w}X.fillText(l,x,yy)}
+function sub(t,u){const si=sentIdx(t);if(t<voice[0]-.2||t>voice[1]+2.6&&hasAudio)return;const s=G.S[si],cs=chunks(s),a=st[si],e=sEnd(si),tot=s.length;let c=0,cur=cs.length-1;const f=cl((t-a)/Math.max(.1,e-a));
+ for(let i=0;i<cs.length;i++){if(f<(c+cs[i].length)/tot){cur=i;break}c+=cs[i].length}
+ const txt=cs[cur],ls=[];X.font=`700 ${u*.62}px Prompt, sans-serif`;let l='',mw=W*.86;for(const w of (seg?[...seg.segment(txt)].map(a=>a.segment):[txt])){if(X.measureText(l+w).width>mw&&l){ls.push(l);l=''}l+=w}ls.push(l);
+ X.textAlign='left';X.lineJoin='round';const y0=H*.86-(ls.length-1)*u*.35;
+ ls.forEach((ln,i)=>{const w=X.measureText(ln).width;let x=(W-w)/2;const y=y0+i*u*.8;const parts=[];let rest=ln;
+  // split by highlight words
+  const re=new RegExp('('+G.HL.join('|')+')');ln.split(re).forEach(p=>{if(!p)return;const hl=G.HL.includes(p);X.strokeStyle='#000';X.lineWidth=u*.14;X.strokeText(p,x,y);X.fillStyle=hl?'#ff3b4e':'#fff';X.fillText(p,x,y);x+=X.measureText(p).width})})}
+function board(x,y,u,kind,T,a){X.save();X.globalAlpha=cl(a);X.translate(x,y);const s=.7+.3*ease(cl(a));X.scale(s,s);rr(-4*u,-2.4*u,8*u,5*u,.5*u,'#fffdf4','#2a1a33',4);X.font=`700 ${u*.42}px Prompt, sans-serif`;X.fillStyle='#2a1a33';X.textAlign='center';
+ if(kind==='brain'||kind==='reward'){X.save();X.translate(0,-.2*u);const ry=Math.cos(T*1.2);el(0,0,2.2*u*(.75+.25*Math.abs(ry)),1.5*u,'#f6a0c8','#2a1a33',4);X.strokeStyle='#b4568c';X.lineWidth=3;for(let i=-3;i<=3;i++){X.beginPath();X.arc(i*.55*u*ry,0,.9*u,1,2.4);X.stroke()}
+  if(kind==='reward'){const g=.5+.5*Math.sin(T*5);el(.5*u*ry,.1*u,.6*u,.45*u,`rgba(255,210,63,${.4+.5*g})`,'#e0a800',3)}X.restore();X.fillText(kind==='reward'?'ระบบรางวัลของสมอง':'สมอง (แบบจำลองเชิงภาพ)',0,2.2*u)}
+ if(kind==='gut'){X.strokeStyle='#e58a6a';X.lineWidth=.6*u;X.lineJoin='round';X.beginPath();X.moveTo(-2.4*u,1.4*u);X.lineTo(-2.4*u,-1.5*u);X.lineTo(2.4*u,-1.5*u);X.lineTo(2.4*u,1.4*u);X.lineTo(1.5*u,1.4*u);X.lineTo(1.5*u,.4*u);X.lineTo(-1.5*u,.4*u);X.lineTo(-1.5*u,2*u);X.stroke();X.strokeStyle='#e8433a';X.lineWidth=.7*u;X.beginPath();X.moveTo(-1.5*u,.8*u);X.lineTo(-1.5*u,1.9*u);X.stroke();X.fillText('ไส้ตรง',-.3*u,1.7*u);X.fillStyle='#2a1a33';X.fillText('ภาพแผนผังอย่างง่าย',0,2.2*u)}
+ if(kind==='rectum'){const m=cl((T%4)/3),sy=-1.6*u+m*1.7*u,wd=1+.35*Math.sin(m*3.14);X.fillStyle='#f0a58f';X.strokeStyle='#2a1a33';X.lineWidth=4;X.beginPath();X.roundRect(-1.1*u*wd,-1.9*u,2.2*u*wd,2.6*u,.5*u);X.fill();X.stroke();el(0,sy,.6*u,.5*u,'#8b5a2b');
+  [.9,1.35].forEach((d,i)=>{el(0,d*u,1.2*u,.22*u,i?'#8fd3ff88':'#ffd23f88','#2a1a33',3)});rr(-2.5*u,1.7*u,5*u,.35*u,.2*u,'#9b7bd3','#2a1a33',3);
+  X.strokeStyle='#ffd23f';X.lineWidth=5;X.setLineDash([8,8]);X.lineDashOffset=-T*40;X.beginPath();X.moveTo(1.3*u*wd,-.5*u);X.bezierCurveTo(2.5*u,-1.5*u,2.8*u,-2*u,3.3*u,-2.2*u);X.stroke();X.setLineDash([]);
+  X.fillStyle='#2a1a33';X.font=`700 ${u*.32}px Prompt, sans-serif`;X.textAlign='left';X.fillText('ไส้ตรง',-3.9*u,-.6*u);X.fillText('หูรูด',-3.9*u,1.1*u);X.fillText('อุ้งเชิงกราน',-3.9*u,1.95*u);X.fillText('ระบบประสาท',2*u,-2.1*u)}
+ if(kind==='hem'){X.fillStyle='#f0a58f';X.strokeStyle='#2a1a33';X.lineWidth=4;X.beginPath();X.roundRect(-1*u,-2*u,2*u,3.2*u,.5*u);X.fill();X.stroke();for(let i=0;i<4;i++)el((i%2?.9:-.9)*u,(-.3+i*.35)*u,.25*u,.18*u,'#c6455b','#2a1a33',2);el(0,.3*u,.9*u,.2*u,'#ffd23f88');X.fillStyle='#2a1a33';X.font=`700 ${u*.3}px Prompt, sans-serif`;X.textAlign='center';X.fillText('ภาพประกอบอย่างง่าย: เนื้อเยื่อหลอดเลือดบริเวณทวารหนัก',0,2.1*u)}
+ X.restore()}
+function phoneScreen(x,y,u,T){rr(x,y,2.6*u,4.4*u,.35*u,'#1b1b24','#2a1a33',4);rr(x+.2*u,y+.35*u,2.2*u,3.7*u,.2*u,'#7dd3ff');['#ff8a5b','#ffd23f','#a78bfa'].forEach((c,i)=>{rr(x+.35*u,y+(.55+i*1.15)*u+Math.sin(T*3+i)*.05*u,1.9*u,.9*u,.15*u,c)});el(x+2.4*u,y+.3*u,.28*u,.28*u,'#ff3b4e')}
+function loopDiag(x,y,u,T){rr(x-4*u,y-2.4*u,8*u,5*u,.5*u,'#fffdf4','#2a1a33',4);const n=['เข้าห้องน้ำ','เปิดโทรศัพท์','สมองจดจำ'];X.font=`700 ${u*.34}px Prompt, sans-serif`;X.textAlign='center';
+ n.forEach((s,i)=>{const a=i*2.094-1.57,px=x+Math.cos(a)*2.1*u,py=y+Math.sin(a)*1.5*u;el(px,py,1.15*u,.55*u,Math.floor(T*1.2)%3===i?'#ffd23f':'#d9ecff','#2a1a33',3);X.fillStyle='#2a1a33';X.fillText(s,px,py+.1*u)});
+ const a=T*2.2-1.57;el(x+Math.cos(a)*2.1*u,y+Math.sin(a)*1.5*u,.15*u,.15*u,'#ff3b4e')}
+function clockF(x,y,u,T,p){el(x,y,1.5*u,1.5*u,'#fff','#2a1a33',5);X.strokeStyle='#2a1a33';X.lineWidth=5;X.lineCap='round';const a=T*8;X.beginPath();X.moveTo(x,y);X.lineTo(x+Math.cos(a)*1.2*u,y+Math.sin(a)*1.2*u);X.moveTo(x,y);X.lineTo(x+Math.cos(a/12)*.8*u,y+Math.sin(a/12)*.8*u);X.stroke()}
+/* ===== FORMAT & SIZE ===== */
+function size(){const f=G.FM[$('fmt').value],r=+$('res').value;const sd=Math.min(f[0],f[1]);const k=r/sd;W=Math.round(f[0]*k/2)*2;H=Math.round(f[1]*k/2)*2;if(f[0]<f[1]||f[0]==f[1]){}cv.width=W;cv.height=H;tile=null;$('est').textContent=`${W}×${H} · 30 fps`;draw(now())}
+function prevSize(){const f=G.FM[$('fmt').value];const w=f[0]>f[1]?1280:f[0]===f[1]?720:720;W=w;H=Math.round(w*f[1]/f[0]/2)*2;cv.width=W;cv.height=H;tile=null}
+$('fmt').onchange=()=>{prevSize();$('est').textContent='ตัวอย่างความละเอียดต่ำ; ความละเอียดจริงตามที่เลือกจะใช้ตอน Export';draw(now())};
+$('res').onchange=()=>{$('est').textContent='เลือก '+$('res').value+'p สำหรับ Export'};
+/* ===== EXPORT (MediaRecorder) ===== */
+$('exp').onclick=async()=>{if(!hasAudio&&!confirm('ยังไม่ได้นำเข้าเสียง วิดีโอจะไม่มีเสียงพากย์และเวลาเป็นค่าประมาณ ต้องการสร้างต่อหรือไม่?'))return;
+ if(!window.MediaRecorder||!cv.captureStream){err('เบราว์เซอร์นี้ไม่รองรับ MediaRecorder/captureStream จึงสร้างวิดีโอไม่ได้ ลองใช้ Chrome (Android/เดสก์ท็อป) หรือ Safari เวอร์ชันล่าสุด');return}
+ err('');playing=false;stopAudio();$('play').textContent='เล่น';cancelled=false;
+ const f=G.FM[$('fmt').value],r=+$('res').value,sd=Math.min(f[0],f[1]),k=r/sd;W=Math.round(f[0]*k/2)*2;H=Math.round(f[1]*k/2)*2;cv.width=W;cv.height=H;tile=null;
+ await (document.fonts&&document.fonts.ready);
+ const types=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'],mt=types.find(t=>MediaRecorder.isTypeSupported(t));if(!mt){err('ไม่พบรูปแบบวิดีโอที่เบราว์เซอร์รองรับ');return}
+ const A=ctx(),dest=A.createMediaStreamDestination(),vs=cv.captureStream(30);dest.stream.getAudioTracks().forEach(t=>vs.addTrack(t));
+ let wl=null;try{wl=await navigator.wakeLock.request('screen')}catch(e){}
+ const chunksB=[];let mr;try{mr=new MediaRecorder(vs,{mimeType:mt,videoBitsPerSecond:r>=1080?8e6:4e6})}catch(e){err('เริ่มบันทึกไม่ได้: '+e.message);return}
+ mr.ondataavailable=e=>e.data.size&&chunksB.push(e.data);$('exp').disabled=true;$('cancel').disabled=false;$('pg').hidden=false;
+ const total=dur+(hasAudio?Math.max(0,2.5-(dur-voice[1])):2.5),ts=performance.now();const end=Math.max(dur,voice[1]+2.5);rec=mr;
+ const done=new Promise(res=>mr.onstop=res);mr.start(500);if(hasAudio)startAudio(0,dest);const tt0=performance.now();let fr=0;
+ await new Promise(res=>{const step=()=>{if(cancelled){res();return}const t=(performance.now()-tt0)/1000;draw(t);fr++;$('pg').value=Math.min(99,t/end*100);$('est').textContent=`กำลังสร้าง ${Math.min(99,Math.floor(t/end*100))}% · ${fr}/${Math.round(end*30)} เฟรม · ${((performance.now()-ts)/1000).toFixed(0)} วินาที · ${mt.split(';')[0]} · เปิดหน้านี้ค้างไว้จนเสร็จ`;if(t>=end)res();else requestAnimationFrame(step)};step()});
+ stopAudio();mr.state!=='inactive'&&mr.stop();await done;wl&&wl.release&&wl.release();$('exp').disabled=false;$('cancel').disabled=true;$('pg').hidden=true;
+ if(cancelled){$('est').textContent='ยกเลิกการสร้างวิดีโอแล้ว';return}
+ const ext=mt.startsWith('video/mp4')?'mp4':'webm',blob=new Blob(chunksB,{type:mt.split(';')[0]});if(blob.size<2000){err('ไฟล์ที่ได้ว่างหรือเสีย ลองลดความละเอียดเป็น 720p แล้วสร้างใหม่');return}
+ if(lastUrl&&!confirm('มีวิดีโอก่อนหน้าอยู่ ต้องการแทนที่ด้วยไฟล์ใหม่?')){}else if(lastUrl)URL.revokeObjectURL(lastUrl);
+ lastBlob=blob;lastUrl=URL.createObjectURL(blob);$('vid').src=lastUrl;$('out').hidden=false;lastBlob.name=`explainer_${W}x${H}.${ext}`;
+ $('vinfo').textContent=`${lastBlob.name} · ${(blob.size/1048576).toFixed(2)} MB · ${W}×${H} · 30 fps (เป้าหมาย) · ${ext.toUpperCase()} · ${end.toFixed(1)} วินาที — ตรวจการเล่นด้วยตัวเล่นด้านบนก่อนใช้งาน`;$('est').textContent='เสร็จสิ้น';$('vid').scrollIntoView({behavior:'smooth'})};
+$('cancel').onclick=()=>{cancelled=true;try{rec&&rec.state!=='inactive'&&rec.stop()}catch(e){}};
+$('sv').onclick=async()=>{if(!lastBlob)return;const file=new File([lastBlob],lastBlob.name,{type:lastBlob.type});
+ if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file]});return}catch(e){if(e.name==='AbortError')return}}
+ const a=document.createElement('a');a.href=lastUrl;a.download=lastBlob.name;document.body.appendChild(a);a.click();a.remove();alert('ดาวน์โหลดแล้ว: เปิดไฟล์จากแอป Files/Downloads แล้วเลือกบันทึกหรือแชร์ต่อ (ระบบไม่ได้บันทึกลง Photos อัตโนมัติ)')};
+$('again').onclick=()=>{window.scrollTo({top:0,behavior:'smooth'})};
+if(!window.CanvasRenderingContext2D||!X.roundRect)err('เบราว์เซอร์นี้เก่าเกินไปสำหรับการวาดภาพ กรุณาอัปเดตเบราว์เซอร์');
+est();buildSP();prevSize();draw(0);
+</script></body></html>
